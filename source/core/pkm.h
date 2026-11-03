@@ -21,6 +21,17 @@ size_t storedSize(PkFormat f);
 // Decrypts a copy of `raw` (at least storedSize(f) bytes) and extracts the fields we need.
 DecodedMon decodeMon(PkFormat f, const uint8_t* raw);
 
+// True when the slot holds no Pokémon (all zero, or a valid blank entry with species 0).
+bool isEmptySlot(PkFormat f, const uint8_t* raw);
+
+// Writes an encrypted blank entry of `slotSize` bytes (box slots of some games include party stats).
+void writeBlankSlot(PkFormat f, uint8_t* out, size_t slotSize);
+
+// File extension PKHeX uses for encrypted entities of this format ("ek4", "eb8", ...).
+const char* encryptedExtension(PkFormat f);
+bool formatFromExtension(const char* ext, PkFormat& out);
+const char* formatName(PkFormat f);
+
 // Species index conversion for formats that don't store National Dex numbers.
 uint16_t nationalFromGen1(uint8_t internal);
 uint16_t nationalFromGen3(uint16_t internal);

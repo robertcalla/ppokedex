@@ -1,6 +1,8 @@
 #include "platform.h"
 
+#include <cstdio>
 #include <cstring>
+#include <ctime>
 #include <dirent.h>
 #include <sys/stat.h>
 #include <switch.h>
@@ -38,7 +40,7 @@ void loadUserName() {
 }
 
 // Some games name their main file differently across versions; fall back to the largest file.
-bool readLargestFile(const std::string& root, pkx::Bytes& out) {
+bool readLargestFile(const std::string& root, pkx::Bytes& out, std::string& name) {
     DIR* dir = opendir(root.c_str());
     if (!dir) return false;
     std::string best;
@@ -48,6 +50,7 @@ bool readLargestFile(const std::string& root, pkx::Bytes& out) {
         struct stat st;
         if (stat(p.c_str(), &st) == 0 && S_ISREG(st.st_mode) && st.st_size > bestSize) {
             best = p;
+            name = e->d_name;
             bestSize = st.st_size;
         }
     }
@@ -111,12 +114,50 @@ std::vector<ConsoleSave> readConsoleSaves() {
             out.push_back(std::move(cs));
             continue;
         }
-        if (!pkx::readFile(std::string("pkxsave:/") + t.saveFile, cs.data) && !readLargestFile("pkxsave:/", cs.data))
+        cs.file = t.saveFile;
+        if (!pkx::readFile(std::string("pkxsave:/") + t.saveFile, cs.data) && !readLargestFile("pkxsave:/", cs.data, cs.file))
             cs.error = "arquivo de save não encontrado";
         fsdevUnmountDevice("pkxsave"); // also closes fs
         out.push_back(std::move(cs));
     }
     return out;
+}
+
+bool writeConsoleSave(const pkx::SwitchTitle& title, const std::string& file, const pkx::Bytes& data,
+                      std::string& error) {
+    if (!g_haveUser) {
+        error = "nenhum usuário selecionado";
+        return false;
+    }
+    FsFileSystem fs;
+    if (R_FAILED(fsOpen_SaveData(&fs, title.titleId, g_uid))) {
+        error = "não foi possível abrir o save do jogo";
+        return false;
+    }
+    if (fsdevMountDevice("pkxsave", fs) == -1) {
+        fsFsClose(&fs);
+        error = "falha ao montar o save";
+        return false;
+    }
+    bool ok = false;
+    std::string path = "pkxsave:/" + file;
+    if (FILE* f = std::fopen(path.c_str(), "r+b")) { // same size: overwrite in place
+        ok = std::fwrite(data.data(), 1, data.size(), f) == data.size();
+        ok = std::fclose(f) == 0 && ok;
+    }
+    if (ok) ok = R_SUCCEEDED(fsdevCommitDevice("pkxsave"));
+    else error = "falha ao gravar " + file;
+    if (ok == false && error.empty()) error = "falha ao confirmar a gravação (commit)";
+    fsdevUnmountDevice("pkxsave");
+    return ok;
+}
+
+std::string timestamp() {
+    time_t now = time(nullptr);
+    struct tm* t = localtime(&now);
+    char buf[32];
+    strftime(buf, sizeof buf, "%Y-%m-%d_%H-%M-%S", t);
+    return buf;
 }
 
 } // namespace plat

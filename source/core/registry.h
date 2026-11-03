@@ -7,13 +7,14 @@
 namespace pkx {
 
 // Saves the user added by hand (any generation). Stored as one line per save:
-//   game_id|label|path
+//   version_id|name|path   (older files may carry a format id such as "bw" instead of a version)
 class Registry {
 public:
     struct Entry {
-        Game game;
-        std::string label;
+        const VersionInfo* version;
         std::string path;
+        Game game() const { return version->game; }
+        const char* name() const { return version->name; }
     };
 
     explicit Registry(std::string file) : file_(std::move(file)) {}

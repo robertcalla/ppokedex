@@ -42,6 +42,26 @@ def pk6(species: int, shiny: bool, rng: random.Random) -> bytes:
     return bytes(out)
 
 
+def crc16_ccitt(data: bytes) -> int:
+    top = bot = 0xFF
+    for b in data:
+        x = b ^ top
+        x ^= x >> 4
+        top = (bot ^ (x >> 3) ^ (x << 4)) & 0xFF
+        bot = (x ^ (x << 5)) & 0xFF
+    return (top << 8) | bot
+
+
+def write_block_table(save: bytearray, blocks: list[int]) -> None:
+    """X/Y block table at the end of the file: {u32 length, u16 id, u16 crc} per block."""
+    table = len(save) - 0x200
+    ofs = 0
+    for i, length in enumerate(blocks):
+        crc = crc16_ccitt(bytes(save[ofs:ofs + length]))
+        struct.pack_into("<IHH", save, table + 0x14 + i * 8, length, i, crc)
+        ofs += (length + 0x1FF) & ~0x1FF
+
+
 def main() -> None:
     path = sys.argv[1]
     count = int(sys.argv[2]) if len(sys.argv) > 2 else 120
@@ -51,6 +71,9 @@ def main() -> None:
     for slot in range(count):
         species = rng.randint(1, 721)
         save[box + slot * 232: box + (slot + 1) * 232] = pk6(species, rng.random() < 0.05, rng)
+    save[0x14004] = 25  # MyStatus6.Game = Y
+    # Three blocks: everything before the boxes, the boxes, and the rest up to the table.
+    write_block_table(save, [0x22600, 31 * 30 * 232, 0x65400 - 0x22600 - 0x34C00])
     with open(path, "wb") as f:
         f.write(save)
     print(f"{path}: {count} Pokémon")

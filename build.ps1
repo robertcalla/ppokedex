@@ -10,6 +10,8 @@ if (-not (Test-Path "$root\romfs\dex.bin")) {
     Write-Warning "romfs\dex.bin nao existe. Rode: python tools\build_dex_data.py"
 }
 
-docker run --rm -v "${root}:/project" -w /project devkitpro/devkita64:latest make -j8 $Target
+# The HOME shortcut loader (forwarder/) is built first: it is embedded in the app's romfs.
+docker run --rm -v "${root}:/project" -w /project devkitpro/devkita64:latest `
+    sh -c "make -C forwarder $Target && make -j8 $Target"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($Target -eq "") { Write-Host "OK: $root\pokedex.nro" }

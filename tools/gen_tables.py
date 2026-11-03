@@ -37,6 +37,8 @@ def main() -> None:
     g3 = array(conv, "Table3InternalToNational")
     g9 = array(conv, "Table9InternalToNational")
     pad = array(swish, "StaticXorpad")
+    intro = array(swish, "IntroHashBytes")
+    outro = array(swish, "OutroHashBytes")
 
     text = f"""// Generated from PKHeX (https://github.com/kwsch/PKHeX, GPLv3) by tools/gen_tables.py.
 // Species index conversion tables and the SwishCrypto static xorpad.
@@ -67,11 +69,19 @@ inline constexpr uint8_t kSwishXorpad[{len(pad)}] = {{
 {fmt(pad)}
 }};
 
+// SHA-256 salts around the SwishCrypto payload (hash = SHA256(intro + payload + outro)).
+inline constexpr uint8_t kSwishIntro[{len(intro)}] = {{
+{fmt(intro)}
+}};
+inline constexpr uint8_t kSwishOutro[{len(outro)}] = {{
+{fmt(outro)}
+}};
+
 }} // namespace pkx::tables
 """
     dest = pathlib.Path(__file__).resolve().parent.parent / "source" / "core" / "tables.h"
     dest.write_text(text, encoding="utf-8", newline="\n")
-    print(f"wrote {dest} (g1={len(g1)} g3={len(g3)} g9={len(g9)} pad={len(pad)})")
+    print(f"wrote {dest} (g1={len(g1)} g3={len(g3)} g9={len(g9)} pad={len(pad)} intro={len(intro)} outro={len(outro)})")
 
 
 if __name__ == "__main__":

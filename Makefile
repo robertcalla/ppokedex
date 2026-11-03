@@ -29,11 +29,11 @@ PKGCONF := $(PORTLIBS)/bin/aarch64-none-elf-pkg-config
 
 ARCH     := -march=armv8-a+crc+crypto -mtune=cortex-a57 -mtp=soft -fPIE
 CFLAGS   := -g -Wall -O2 -ffunction-sections $(ARCH) $(DEFINES)
-CFLAGS   += $(INCLUDE) -D__SWITCH__ $(shell $(PKGCONF) --cflags sdl2 SDL2_ttf)
+CFLAGS   += $(INCLUDE) -D__SWITCH__ $(shell $(PKGCONF) --cflags sdl2 SDL2_ttf SDL2_image)
 CXXFLAGS := $(CFLAGS) -std=gnu++17
 ASFLAGS  := -g $(ARCH)
 LDFLAGS   = -specs=$(DEVKITPRO)/libnx/switch.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
-LIBS     := $(shell $(PKGCONF) --libs SDL2_ttf sdl2) -lnx
+LIBS     := $(shell $(PKGCONF) --libs SDL2_image SDL2_ttf sdl2) -lnx
 LIBDIRS  := $(PORTLIBS) $(LIBNX)
 
 #---------------------------------------------------------------------------------

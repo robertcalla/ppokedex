@@ -23,9 +23,16 @@ struct ConsoleSave {
     const pkx::SwitchTitle* title;
     bool present = false; // a save exists for this user
     std::string error;
+    std::string file; // file name inside the save filesystem
     pkx::Bytes data;
 };
 std::vector<ConsoleSave> readConsoleSaves();
+// Replaces the save file of an installed game and commits it.
+bool writeConsoleSave(const pkx::SwitchTitle& title, const std::string& file, const pkx::Bytes& data,
+                      std::string& error);
 std::string userName();
+
+// "2026-11-03_14-05-09", for backup folder names.
+std::string timestamp();
 
 } // namespace plat

@@ -8,6 +8,7 @@
 #include <SDL2/SDL.h>
 
 #include <cstdlib>
+#include <ctime>
 #include <sstream>
 
 namespace plat {
@@ -81,4 +82,32 @@ const void* systemFont(size_t& size) {
 
 std::vector<ConsoleSave> readConsoleSaves() { return {}; }
 
+bool writeConsoleSave(const pkx::SwitchTitle&, const std::string&, const pkx::Bytes&, std::string& error) {
+    error = "sem console no PC";
+    return false;
+}
+
+std::string timestamp() {
+    time_t now = time(nullptr);
+    char buf[32];
+    strftime(buf, sizeof buf, "%Y-%m-%d_%H-%M-%S", localtime(&now));
+    return buf;
+}
+
+} // namespace plat
+
+// HOME shortcuts only exist on the console.
+#include "../source/platform/shortcut.h"
+
+namespace plat {
+bool shortcutSupported() { return false; }
+bool shortcutInstalled(const std::string&) { return false; }
+bool installShortcut(const std::string&, std::string& error, const std::function<void(const char*)>&) {
+    error = "atalhos só podem ser criados no Switch";
+    return false;
+}
+bool removeShortcut(const std::string&, std::string& error) {
+    error = "atalhos só podem ser criados no Switch";
+    return false;
+}
 } // namespace plat

@@ -35,8 +35,13 @@ bool Registry::load() {
         size_t a = s.find('|'), b = a == std::string::npos ? a : s.find('|', a + 1);
         if (b == std::string::npos) continue;
         Entry e;
-        if (!gameFromId(s.substr(0, a), e.game)) continue;
-        e.label = s.substr(a + 1, b - a - 1);
+        std::string id = s.substr(0, a);
+        e.version = versionById(id);
+        Game g;
+        if (!e.version && gameFromId(id, g)) // format id from older versions of the app
+            for (auto& v : allVersions())
+                if (v.game == g) { e.version = &v; break; }
+        if (!e.version) continue;
         e.path = s.substr(b + 1);
         entries_.push_back(std::move(e));
     }
@@ -48,9 +53,9 @@ bool Registry::save() const {
     makeParentDirs(file_);
     FILE* f = std::fopen(file_.c_str(), "wb");
     if (!f) return false;
-    std::fputs("# Pokedex - saves externos (jogo|nome|caminho)\n", f);
+    std::fputs("# Pokedex - saves externos (versao|nome|caminho)\n", f);
     for (auto& e : entries_)
-        std::fprintf(f, "%s|%s|%s\n", gameInfo(e.game).id, e.label.c_str(), e.path.c_str());
+        std::fprintf(f, "%s|%s|%s\n", e.version->id, e.version->name, e.path.c_str());
     std::fclose(f);
     return true;
 }

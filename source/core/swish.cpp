@@ -1,6 +1,7 @@
 // SwishCrypto + SCBlock reader. Follows PKHeX's SwishCrypto/SCBlock/SCXorShift32 (GPLv3).
 #include "swish.h"
 
+#include "hash.h"
 #include "tables.h"
 
 namespace pkx {
@@ -79,14 +80,15 @@ int typeSize(uint8_t type) {
 
 } // namespace
 
-bool swishReadBlocks(Bytes file, const std::set<uint32_t>& wanted, std::map<uint32_t, Bytes>& out,
-                     std::string& error) {
+bool SwishFile::open(Bytes file, std::string& error) {
     if (file.size() < 0x100) {
         error = "arquivo pequeno demais para um save de Switch";
         return false;
     }
-    const size_t len = file.size() - kHashSize;
-    uint8_t* data = file.data();
+    data_ = std::move(file);
+    blocks_.clear();
+    const size_t len = data_.size() - kHashSize;
+    uint8_t* data = data_.data();
     cryptStaticXorpad(data, len);
 
     size_t ofs = 0;
@@ -94,23 +96,25 @@ bool swishReadBlocks(Bytes file, const std::set<uint32_t>& wanted, std::map<uint
         uint32_t key = rd32(data + ofs);
         ofs += 4;
         XorShift32 xk(key);
+        int skip = 1;
         uint8_t type = data[ofs++] ^ xk.next();
         size_t numBytes = 0;
         switch (type) {
         case 1:
         case 2:
         case 3: continue; // booleans carry no payload
-        case 4: {         // Object
-            if (ofs + 4 > len) break;
+        case 4:           // Object
+            if (ofs + 4 > len) { error = "save truncado"; return false; }
             numBytes = rd32(data + ofs) ^ xk.next32();
             ofs += 4;
+            skip += 4;
             break;
-        }
         case 5: { // Array
-            if (ofs + 5 > len) break;
+            if (ofs + 5 > len) { error = "save truncado"; return false; }
             uint32_t entries = rd32(data + ofs) ^ xk.next32();
             ofs += 4;
             uint8_t sub = data[ofs++] ^ xk.next();
+            skip += 5;
             int sz = typeSize(sub);
             if (sz < 0) {
                 error = "bloco de save com tipo desconhecido";
@@ -133,13 +137,52 @@ bool swishReadBlocks(Bytes file, const std::set<uint32_t>& wanted, std::map<uint
             error = "save truncado ou corrompido";
             return false;
         }
-        if (wanted.count(key)) {
-            Bytes payload(data + ofs, data + ofs + numBytes);
-            for (auto& b : payload)
-                b ^= xk.next();
-            out[key] = std::move(payload);
-        }
+        blocks_[key] = Block{ofs, numBytes, skip};
         ofs += numBytes;
+    }
+    return true;
+}
+
+bool SwishFile::read(uint32_t key, Bytes& out) const {
+    auto it = blocks_.find(key);
+    if (it == blocks_.end()) return false;
+    const Block& b = it->second;
+    XorShift32 xk(key);
+    for (int i = 0; i < b.skip; i++) xk.next();
+    out.assign(data_.begin() + b.ofs, data_.begin() + b.ofs + b.size);
+    for (auto& v : out) v ^= xk.next();
+    return true;
+}
+
+bool SwishFile::write(uint32_t key, const Bytes& plain) {
+    auto it = blocks_.find(key);
+    if (it == blocks_.end() || it->second.size != plain.size()) return false;
+    const Block& b = it->second;
+    XorShift32 xk(key);
+    for (int i = 0; i < b.skip; i++) xk.next();
+    for (size_t i = 0; i < plain.size(); i++) data_[b.ofs + i] = plain[i] ^ xk.next();
+    return true;
+}
+
+Bytes SwishFile::save() const {
+    Bytes out = data_;
+    const size_t len = out.size() - kHashSize;
+    cryptStaticXorpad(out.data(), len);
+    Sha256 h;
+    h.update(tables::kSwishIntro, sizeof(tables::kSwishIntro));
+    h.update(out.data(), len);
+    h.update(tables::kSwishOutro, sizeof(tables::kSwishOutro));
+    h.final(out.data() + len);
+    return out;
+}
+
+bool swishReadBlocks(Bytes file, const std::set<uint32_t>& wanted, std::map<uint32_t, Bytes>& out,
+                     std::string& error) {
+    SwishFile f;
+    if (!f.open(std::move(file), error)) return false;
+    for (uint32_t key : wanted) {
+        Bytes b;
+        if (f.read(key, b)) out[key] = std::move(b);
     }
     return true;
 }

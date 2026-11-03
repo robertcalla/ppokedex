@@ -8,16 +8,20 @@ namespace pkx {
 
 // File layout (little endian):
 //   "PKDX" u32 version u32 speciesCount u32 dexCount u32 stringsOffset
-//   species[speciesCount] { u16 national, u8 generation, u8 pad, u32 nameOfs, u32 descOfs, u32 gameOfs }
-//   dex[dexCount]         { u32 nameOfs, u32 count, u32 listOffset }
+//   species[speciesCount] { u16 national, u8 generation, u8 pad, u32 nameOfs, u32 descOfs, u32 gameOfs,
+//                           u8 stats[6], u8 types[2] }
+//   dex[dexCount]         { u32 nameOfs, u32 count, u32 listOffset, u32 kind, u32 gamesOfs }
 //   u16 lists ..., then the UTF-8 string blob (NUL terminated, offsets relative to stringsOffset)
 
-DexData::~DexData() {
+DexData::~DexData() { close(); }
+
+void DexData::close() {
     if (file_) std::fclose(file_);
+    file_ = nullptr;
 }
 
 std::string DexData::readString(uint32_t ofs) {
-    if (ofs == 0xFFFFFFFF) return {};
+    if (ofs == 0xFFFFFFFF || !file_) return {};
     std::string out;
     if (std::fseek(file_, long(stringsBase_ + ofs), SEEK_SET) != 0) return out;
     char buf[256];
@@ -45,10 +49,15 @@ bool DexData::load(const std::string& path, std::string& error) {
         error = "dex.bin inválido";
         return false;
     }
+    if (rd32(hdr + 4) != 3) {
+        error = "dex.bin de versão antiga; gere de novo com tools/build_dex_data.py";
+        return false;
+    }
     uint32_t count = rd32(hdr + 8), dexCount = rd32(hdr + 12);
     stringsBase_ = rd32(hdr + 16);
 
-    std::vector<uint8_t> table(size_t(count) * 16 + size_t(dexCount) * 12);
+    constexpr size_t kEntry = 24;
+    std::vector<uint8_t> table(size_t(count) * kEntry + size_t(dexCount) * 20);
     if (std::fread(table.data(), 1, table.size(), file_) != table.size()) {
         error = "dex.bin truncado";
         return false;
@@ -56,22 +65,32 @@ bool DexData::load(const std::string& path, std::string& error) {
     std::vector<uint32_t> nameOfs(count);
     species_.resize(count);
     for (uint32_t i = 0; i < count; i++) {
-        const uint8_t* e = &table[i * 16];
+        const uint8_t* e = &table[i * kEntry];
         species_[i].national = rd16(e);
         species_[i].generation = e[2];
         nameOfs[i] = rd32(e + 4);
         species_[i].descOfs = rd32(e + 8);
         species_[i].gameOfs = rd32(e + 12);
+        std::memcpy(species_[i].stats, e + 16, 6);
+        std::memcpy(species_[i].types, e + 22, 2);
     }
-    struct RawDex { uint32_t name, count, list; };
+    struct RawDex { uint32_t name, count, list, kind, games; };
     std::vector<RawDex> raw(dexCount);
     for (uint32_t i = 0; i < dexCount; i++) {
-        const uint8_t* e = &table[count * 16 + i * 12];
-        raw[i] = {rd32(e), rd32(e + 4), rd32(e + 8)};
+        const uint8_t* e = &table[count * kEntry + i * 20];
+        raw[i] = {rd32(e), rd32(e + 4), rd32(e + 8), rd32(e + 12), rd32(e + 16)};
     }
     for (auto& rd : raw) {
         Dex dex;
         dex.name = readString(rd.name);
+        dex.kind = Kind(rd.kind);
+        std::string games = readString(rd.games);
+        for (size_t start = 0; !games.empty() && start <= games.size();) {
+            size_t comma = games.find(',', start);
+            if (comma == std::string::npos) comma = games.size();
+            dex.games.push_back(games.substr(start, comma - start));
+            start = comma + 1;
+        }
         dex.species.resize(rd.count);
         std::vector<uint8_t> buf(size_t(rd.count) * 2);
         std::fseek(file_, long(rd.list), SEEK_SET);
@@ -84,6 +103,13 @@ bool DexData::load(const std::string& path, std::string& error) {
     }
     for (uint32_t i = 0; i < count; i++) species_[i].name = readString(nameOfs[i]);
     return true;
+}
+
+const char* DexData::typeName(uint8_t type) {
+    static const char* kNames[] = {"",       "Normal",  "Lutador", "Voador",  "Venenoso", "Terrestre", "Pedra",
+                                   "Inseto", "Fantasma", "Aço",    "Fogo",    "Água",     "Planta",    "Elétrico",
+                                   "Psíquico", "Gelo",  "Dragão",  "Sombrio", "Fada"};
+    return type < sizeof(kNames) / sizeof(kNames[0]) ? kNames[type] : "";
 }
 
 const DexData::Species* DexData::find(uint16_t national) const {

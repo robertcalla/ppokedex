@@ -2,6 +2,7 @@
 #include "games.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <map>
 #include <set>
@@ -37,17 +38,58 @@ const std::vector<GameInfo> kGames = {
     {Game::ZA, "za", "Pokémon Legends: Z-A", 9, "Nintendo Switch"},
 };
 
+const std::vector<VersionInfo> kVersions = {
+    {"red", "Red", Game::RBY, {"red", "vermelho", "rojo", "rouge"}},
+    {"blue", "Blue", Game::RBY, {"blue", "azul", "bleu"}},
+    {"yellow", "Yellow", Game::RBY, {"yellow", "amarelo", "amarillo", "jaune"}},
+    {"gold", "Gold", Game::GS, {"gold", "ouro", "oro"}},
+    {"silver", "Silver", Game::GS, {"silver", "prata", "plata"}},
+    {"crystal", "Crystal", Game::Crystal, {"crystal", "cristal"}},
+    {"ruby", "Ruby", Game::RS, {"ruby", "rubi"}},
+    {"sapphire", "Sapphire", Game::RS, {"sapphire", "safira", "zafiro"}},
+    {"emerald", "Emerald", Game::Emerald, {"emerald", "esmeralda"}},
+    {"firered", "FireRed", Game::FRLG, {"firered", "fire red", "fr"}},
+    {"leafgreen", "LeafGreen", Game::FRLG, {"leafgreen", "leaf green", "lg"}},
+    {"diamond", "Diamond", Game::DP, {"diamond", "diamante"}},
+    {"pearl", "Pearl", Game::DP, {"pearl", "perola"}},
+    {"platinum", "Platinum", Game::Pt, {"platinum", "platina", "platino"}},
+    {"heartgold", "HeartGold", Game::HGSS, {"heartgold", "heart gold", "hg"}},
+    {"soulsilver", "SoulSilver", Game::HGSS, {"soulsilver", "soul silver", "ss"}},
+    {"black", "Black", Game::BW, {"black", "preto", "negro", "noire"}},
+    {"white", "White", Game::BW, {"white", "branco", "blanco", "blanche"}},
+    {"black2", "Black 2", Game::B2W2, {"black 2", "black2", "black version 2", "b2"}},
+    {"white2", "White 2", Game::B2W2, {"white 2", "white2", "white version 2", "w2"}},
+    {"x", "X", Game::XY, {"x"}},
+    {"y", "Y", Game::XY, {"y"}},
+    {"omegaruby", "Omega Ruby", Game::ORAS, {"omega ruby", "omegaruby", "or"}},
+    {"alphasapphire", "Alpha Sapphire", Game::ORAS, {"alpha sapphire", "alphasapphire", "as"}},
+    {"sun", "Sun", Game::SM, {"sun", "sol"}},
+    {"moon", "Moon", Game::SM, {"moon", "lua", "luna"}},
+    {"ultrasun", "Ultra Sun", Game::USUM, {"ultra sun", "ultrasun", "us"}},
+    {"ultramoon", "Ultra Moon", Game::USUM, {"ultra moon", "ultramoon", "um"}},
+    {"letsgopikachu", "Let's Go, Pikachu!", Game::LGPE, {"lets go pikachu", "letsgopikachu", "pikachu"}},
+    {"letsgoeevee", "Let's Go, Eevee!", Game::LGPE, {"lets go eevee", "letsgoeevee", "eevee"}},
+    {"sword", "Sword", Game::SWSH, {"sword", "espada"}},
+    {"shield", "Shield", Game::SWSH, {"shield", "escudo"}},
+    {"brilliantdiamond", "Brilliant Diamond", Game::BDSP, {"brilliant diamond", "brilliantdiamond", "bd"}},
+    {"shiningpearl", "Shining Pearl", Game::BDSP, {"shining pearl", "shiningpearl", "sp"}},
+    {"legendsarceus", "Legends: Arceus", Game::PLA, {"legends arceus", "arceus", "pla"}},
+    {"scarlet", "Scarlet", Game::SV, {"scarlet", "escarlate", "escarlata"}},
+    {"violet", "Violet", Game::SV, {"violet", "violeta"}},
+    {"legendsza", "Legends: Z-A", Game::ZA, {"legends z a", "legends za", "z a", "za"}},
+};
+
 const std::vector<SwitchTitle> kSwitchTitles = {
-    {0x010003F003A34000ull, Game::LGPE, "Pokémon Let's Go, Pikachu!", "savedata.bin"},
-    {0x0100187003A36000ull, Game::LGPE, "Pokémon Let's Go, Eevee!", "savedata.bin"},
-    {0x0100ABF008968000ull, Game::SWSH, "Pokémon Sword", "main"},
-    {0x01008DB008C2C000ull, Game::SWSH, "Pokémon Shield", "main"},
-    {0x0100000011D90000ull, Game::BDSP, "Pokémon Brilliant Diamond", "SaveData.dat"},
-    {0x010018E011D92000ull, Game::BDSP, "Pokémon Shining Pearl", "SaveData.dat"},
-    {0x01001F5010DFA000ull, Game::PLA, "Pokémon Legends: Arceus", "main"},
-    {0x0100A3D008C5C000ull, Game::SV, "Pokémon Scarlet", "main"},
-    {0x01008F6008C5E000ull, Game::SV, "Pokémon Violet", "main"},
-    {0x0100F43008C44000ull, Game::ZA, "Pokémon Legends: Z-A", "main"},
+    {0x010003F003A34000ull, "letsgopikachu", "savedata.bin"},
+    {0x0100187003A36000ull, "letsgoeevee", "savedata.bin"},
+    {0x0100ABF008968000ull, "sword", "main"},
+    {0x01008DB008C2C000ull, "shield", "main"},
+    {0x0100000011D90000ull, "brilliantdiamond", "SaveData.dat"},
+    {0x010018E011D92000ull, "shiningpearl", "SaveData.dat"},
+    {0x01001F5010DFA000ull, "legendsarceus", "main"},
+    {0x0100A3D008C5C000ull, "scarlet", "main"},
+    {0x01008F6008C5E000ull, "violet", "main"},
+    {0x0100F43008C44000ull, "legendsza", "main"},
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -120,7 +162,7 @@ ParseResult parseGen1(const Bytes& d) {
         if (count > 20) continue;
         for (int i = 0; i < count; i++) {
             uint16_t sp = nationalFromGen1(p[ofs + 22 + i * 33]);
-            if (sp) r.mons.push_back({sp, 0, false, false, b});
+            if (sp) r.mons.push_back({sp, 0, false, false, b, i});
         }
     }
     r.ok = true;
@@ -161,7 +203,7 @@ ParseResult parseGen2(const Bytes& d, bool crystal) {
             const uint8_t* mon = p + ofs + 22 + i * 32;
             if (p[ofs + 1 + i] == 0xFD) { r.eggs++; continue; }
             if (mon[0] >= 1 && mon[0] <= 251)
-                r.mons.push_back({mon[0], 0, gen2Shiny(mon), false, b});
+                r.mons.push_back({mon[0], 0, gen2Shiny(mon), false, b, i});
         }
     }
     r.ok = true;
@@ -365,6 +407,100 @@ ParseResult parseSwish(const Bytes& d, Game g) {
 // ---------------------------------------------------------------------------------------------
 
 const std::vector<GameInfo>& allGames() { return kGames; }
+const std::vector<VersionInfo>& allVersions() { return kVersions; }
+
+const VersionInfo* versionById(const std::string& id) {
+    for (auto& v : kVersions)
+        if (id == v.id) return &v;
+    return nullptr;
+}
+
+namespace {
+
+// Lowercase words of a file name without its extension, padded with spaces
+// (" pokemon white version usa "), so keywords only match whole words.
+std::string normalizeName(const std::string& fileName) {
+    size_t slash = fileName.find_last_of("/\\");
+    std::string base = slash == std::string::npos ? fileName : fileName.substr(slash + 1);
+    size_t dot = base.find_last_of('.');
+    if (dot != std::string::npos && dot > 0) base = base.substr(0, dot);
+    std::string out = " ";
+    for (unsigned char c : base) {
+        if (c == '\'') continue; // "Let's" -> "lets"
+        if (std::isalnum(c)) out += char(std::tolower(c));
+        else if (out.back() != ' ') out += ' ';
+    }
+    if (out.back() != ' ') out += ' ';
+    return out;
+}
+
+} // namespace
+
+const VersionInfo* detectVersion(Game g, const Bytes& d) {
+    size_t ofs = 0;
+    if (g == Game::BW || g == Game::B2W2) ofs = 0x1941F;                // PlayerData5.Game
+    else if (g == Game::XY || g == Game::ORAS) ofs = 0x14004;      // MyStatus6.Game
+    else if (g == Game::SM || g == Game::USUM) ofs = 0x1204;       // MyStatus7.Game
+    if (!ofs || ofs >= d.size()) return nullptr;
+    const char* id = nullptr;
+    switch (d[ofs]) {
+    case 20: id = "white"; break;
+    case 21: id = "black"; break;
+    case 22: id = "white2"; break;
+    case 23: id = "black2"; break;
+    case 24: id = "x"; break;
+    case 25: id = "y"; break;
+    case 26: id = "alphasapphire"; break;
+    case 27: id = "omegaruby"; break;
+    case 30: id = "sun"; break;
+    case 31: id = "moon"; break;
+    case 32: id = "ultrasun"; break;
+    case 33: id = "ultramoon"; break;
+    }
+    const VersionInfo* v = id ? versionById(id) : nullptr;
+    return v && v->game == g ? v : nullptr;
+}
+
+std::vector<const VersionInfo*> guessVersions(const Bytes& data, const std::string& fileName) {
+    std::vector<Game> games = guessGames(data);
+    const std::string name = normalizeName(fileName);
+
+    // The longest keyword found in the file name wins ("black 2" over "black").
+    const VersionInfo* fromName = nullptr;
+    size_t bestLen = 0;
+    for (auto& v : kVersions)
+        for (const char* kw : v.keywords) {
+            std::string needle = std::string(" ") + kw + " ";
+            if (name.find(needle) != std::string::npos && needle.size() > bestLen) {
+                fromName = &v;
+                bestLen = needle.size();
+            }
+        }
+
+    std::vector<const VersionInfo*> out;
+    auto push = [&](const VersionInfo* v) {
+        if (v && std::find(out.begin(), out.end(), v) == out.end()) out.push_back(v);
+    };
+    // Version byte inside the save, checked for every format that decodes as well as the best one.
+    size_t best = parseSave(games.front(), data).mons.size();
+    for (Game g : games) {
+        ParseResult r = parseSave(g, data);
+        if (!r.ok || r.mons.size() < best) continue;
+        if (const VersionInfo* v = detectVersion(g, data)) {
+            push(v);
+            break;
+        }
+    }
+    // Trust the file name only if the data could plausibly belong to that game.
+    if (fromName) {
+        auto pos = std::find(games.begin(), games.end(), fromName->game);
+        if (pos != games.end() && pos - games.begin() < 5) push(fromName);
+    }
+    for (Game g : games)
+        for (auto& v : kVersions)
+            if (v.game == g) push(&v);
+    return out;
+}
 const std::vector<SwitchTitle>& switchTitles() { return kSwitchTitles; }
 
 const GameInfo& gameInfo(Game g) {

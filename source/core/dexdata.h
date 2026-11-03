@@ -17,18 +17,26 @@ public:
         std::string name;
         uint32_t descOfs = 0xFFFFFFFF;
         uint32_t gameOfs = 0xFFFFFFFF;
+        uint8_t stats[6] = {}; // base HP, Atk, Def, SpA, SpD, Spe
+        uint8_t types[2] = {}; // 1-18 (see typeName), 0 = none
     };
+    enum class Kind { National = 0, Region = 1, Game = 2 };
     struct Dex {
         std::string name;
-        std::vector<uint16_t> species; // National numbers, in regional order
+        Kind kind = Kind::National;
+        std::vector<std::string> games; // format ids (games.cpp) for Kind::Game
+        std::vector<uint16_t> species;  // National numbers, in the dex's own order
     };
 
     ~DexData();
+    void close();
     bool load(const std::string& path, std::string& error);
 
     const std::vector<Species>& species() const { return species_; }
     const std::vector<Dex>& dexes() const { return dexes_; }
     const Species* find(uint16_t national) const;
+    // Portuguese type name for ids 1-18.
+    static const char* typeName(uint8_t type);
     uint16_t maxSpecies() const { return uint16_t(species_.size()); }
 
     // Description text and the game it came from (lazy, cached for the last species).

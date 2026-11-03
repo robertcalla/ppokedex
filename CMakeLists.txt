@@ -7,12 +7,15 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_library(pkxcore STATIC
+    source/core/bank.cpp
     source/core/bytes.cpp
     source/core/collection.cpp
     source/core/dexdata.cpp
     source/core/games.cpp
+    source/core/hash.cpp
     source/core/pkm.cpp
     source/core/registry.cpp
+    source/core/storage.cpp
     source/core/swish.cpp
 )
 target_compile_options(pkxcore PRIVATE -Wall -Wextra)

@@ -33,6 +33,7 @@ struct OwnedMon {
     bool shiny = false;
     bool party = false;
     int box = -1; // 0-based, -1 for party
+    int slot = -1; // position inside the box (Game Boy saves only; other formats use SaveStorage)
 };
 
 struct ParseResult {
@@ -47,12 +48,28 @@ ParseResult parseSave(Game g, const Bytes& data);
 // Ranks the formats that could match this file, most likely first.
 std::vector<Game> guessGames(const Bytes& data);
 
+// A single game version ("White", "Violet"). Saves are labelled with these names.
+struct VersionInfo {
+    const char* id;   // stable id stored in the registry
+    const char* name; // display name, as on the box art without the "Pokémon" prefix
+    Game game;
+    std::vector<const char*> keywords; // matched against save file names (whole lowercase words)
+};
+const std::vector<VersionInfo>& allVersions();
+const VersionInfo* versionById(const std::string& id);
+
+// Version recorded inside the save (Gen 5-7 keep it), or nullptr when the save doesn't say.
+const VersionInfo* detectVersion(Game g, const Bytes& data);
+
+// Every version, most likely first, for a save file with this content and file name.
+std::vector<const VersionInfo*> guessVersions(const Bytes& data, const std::string& fileName);
+
 // Installed Switch titles we know how to read.
 struct SwitchTitle {
     uint64_t titleId;
-    Game game;
-    const char* name;
+    const char* version;  // VersionInfo id
     const char* saveFile; // file inside the save data filesystem
+    const VersionInfo& info() const { return *versionById(version); }
 };
 const std::vector<SwitchTitle>& switchTitles();
 

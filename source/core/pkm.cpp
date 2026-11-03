@@ -142,6 +142,65 @@ DecodedMon decodeMon(PkFormat f, const uint8_t* raw) {
     return m;
 }
 
+bool isEmptySlot(PkFormat f, const uint8_t* raw) {
+    const size_t n = storedSize(f);
+    bool allZero = true;
+    for (size_t i = 0; i < n && allZero; i++) allZero = raw[i] == 0;
+    if (allZero) return true;
+    if (f == PkFormat::PK3) return rd32(raw) == 0 && rd32(raw + 4) == 0;
+
+    Layout L = layoutFor(f);
+    uint8_t d[0x168];
+    std::memcpy(d, raw, L.stored);
+    uint32_t ec = rd32(d);
+    uint16_t chk = rd16(d + 6);
+    cryptArray(d + 8, L.stored - 8, L.seedIsChecksum ? chk : ec);
+    unshuffle(d + 8, L.block, (ec >> 13) & 31);
+    return sum16(d + 8, L.stored - 8) == chk && rd16(d + 8) == 0;
+}
+
+void writeBlankSlot(PkFormat f, uint8_t* out, size_t slotSize) {
+    std::memset(out, 0, slotSize);
+    if (f == PkFormat::PK3) return; // Gen 3 treats an all-zero slot as empty
+    // A zeroed entity has EC/PID 0 (no shuffle) and checksum 0, so only the XOR stream applies.
+    const size_t stored = layoutFor(f).stored;
+    cryptArray(out + 8, stored - 8, 0);
+    if (slotSize > stored) cryptArray(out + stored, slotSize - stored, 0);
+}
+
+namespace {
+struct FormatName { PkFormat f; const char* ext; const char* name; };
+constexpr FormatName kFormatNames[] = {
+    {PkFormat::PK3, "ek3", "Gen 3"},       {PkFormat::PK4, "ek4", "Gen 4"},
+    {PkFormat::PK5, "ek5", "Gen 5"},       {PkFormat::PK6, "ek6", "Gen 6"},
+    {PkFormat::PK7, "ek7", "Gen 7"},       {PkFormat::PB7, "eb7", "Let's Go"},
+    {PkFormat::PK8, "ek8", "Sword/Shield"}, {PkFormat::PB8, "eb8", "BDSP"},
+    {PkFormat::PA8, "ea8", "Legends: Arceus"}, {PkFormat::PK9, "ek9", "Scarlet/Violet"},
+    {PkFormat::PA9, "ea9", "Legends: Z-A"},
+};
+} // namespace
+
+const char* encryptedExtension(PkFormat f) {
+    for (auto& n : kFormatNames)
+        if (n.f == f) return n.ext;
+    return "bin";
+}
+
+bool formatFromExtension(const char* ext, PkFormat& out) {
+    for (auto& n : kFormatNames)
+        if (std::strcmp(n.ext, ext) == 0) {
+            out = n.f;
+            return true;
+        }
+    return false;
+}
+
+const char* formatName(PkFormat f) {
+    for (auto& n : kFormatNames)
+        if (n.f == f) return n.name;
+    return "?";
+}
+
 uint16_t nationalFromGen1(uint8_t internal) {
     return tables::kGen1InternalToNational[internal];
 }
